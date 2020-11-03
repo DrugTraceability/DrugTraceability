@@ -1,19 +1,23 @@
-pragma solidity ^0.6.0;
-
+pragma solidity=0.6.0;
+pragma experimental ABIEncoderV2;
 //Creating a smartcontract for a Lot 
 
 contract Lot {
     
-    address payable ownerID; //The eth address of the contract deployer
+    address payable internal ownerID; //The eth address of the contract deployer
     mapping(address => uint) public boxesPatient; //Mapping the purchased boxes to their corresonding patient ID
-    string lotName; // A variable that specifies the lot Name
-    uint numBoxes; //A variable for the number of boxes in a lot
-    uint lotPrice; //The price of selling the whole lot
-    uint boxPrice; //The price of selling one box of the lot to a patient
+    string internal IPFShash;
+
+    
     //Creating a struct for the uploaded image to the IPFS
-    struct image{
-        string IPFShash;
+    struct lotdata{
+        string lotName; // A variable that specifies the lot Name
+        uint numBoxes; //A variable for the number of boxes in a lot
+        uint lotPrice; //The price of selling the whole lot
+        uint boxPrice; //The price of selling one box of the lot to a patient
     }
+    
+    lotdata internal lot;
     
     
     //Defining events 
@@ -41,18 +45,18 @@ contract Lot {
     //Defining Functions
     
     // View the current owner
-    function currentOwner() public view returns (address _currentOwner){
+    function currentOwner() external view returns (address _currentOwner){
         return ownerID;
     }
     
     //A function for the lot specification
     
-    function lotDetails(string memory _lotName, uint _lotPrice,uint _numBoxes, uint _boxPrice) public onlyOwner() {
+    function lotDetails(string calldata _lotName, uint _lotPrice,uint _numBoxes, uint _boxPrice) external onlyOwner() {
         
-        lotName = _lotName;
-        lotPrice = _lotPrice;
-        numBoxes = _numBoxes;
-        boxPrice = _boxPrice;
+        lot.lotName = _lotName;
+        lot.lotPrice = _lotPrice;
+        lot.numBoxes = _numBoxes;
+        lot.boxPrice = _boxPrice;
         
         //ownerID = msg.sender;
         
@@ -60,10 +64,10 @@ contract Lot {
     }
     
     //Creating image upload function to store the image of the lot on IPFS
-    function  uploadLotImage (string memory _ipfsHash) public onlyOwner()  returns (bool _success)  {
+    function  uploadLotImage (string calldata _ipfsHash) external onlyOwner()  returns (bool _success)  {
             
         require(bytes(_ipfsHash).length == 46);
-        image(_ipfsHash);
+        IPFShash=_ipfsHash;
         _success = true;
         
         emit imageuploaded(msg.sender);
@@ -72,22 +76,22 @@ contract Lot {
     
     //Creating a function to declare that the lot is for sale 
     
-    function grantSale() public onlyOwner(){
+    function grantSale() external onlyOwner(){
         
-        emit lotSale(lotName,numBoxes,lotPrice,boxPrice);
+        emit lotSale(lot.lotName,lot.numBoxes,lot.lotPrice,lot.boxPrice);
     
     }    
     //Creating a function to buy lot 
     
-    function buyLot () public payable {
+    function buyLot () external payable {
         address payable buyer = msg.sender;
         address payable seller = ownerID;
         require(buyer != seller, "The lot is already owned by the function caller");
-        require(msg.value >= lotPrice, "insufficient payment"); //Checks if the buyer paid enough
-        uint refundAmount = msg.value - lotPrice; //if msg.value is more than enough then the reminder is refunded to the buyer
+        require(msg.value >= lot.lotPrice, "insufficient payment"); //Checks if the buyer paid enough
+        uint refundAmount = msg.value - lot.lotPrice; //if msg.value is more than enough then the reminder is refunded to the buyer
         msg.sender.transfer(refundAmount); // Transfers the excess amount to the buyer
 
-        seller.transfer(lotPrice); //Transfering ether to the seller
+        seller.transfer(lot.lotPrice); //Transfering ether to the seller
         ownerID = buyer; //Upating the ownerID
         
         emit lotSold(ownerID); 
@@ -98,17 +102,17 @@ contract Lot {
     
     //Creating a function to sell boxes to patients
     
-    function buyBox (uint numboxes2buy) public payable {
+    function buyBox (uint numboxes2buy) external payable {
         address payable buyer = msg.sender;
         address payable seller = ownerID; 
-        require(numboxes2buy <= numBoxes, "The specified amount exceeds the limit");
-        require(msg.value >= boxPrice*numboxes2buy, "insufficient payment");
-        uint refundAmount = msg.value - (boxPrice*numboxes2buy);
+        require(numboxes2buy <= lot.numBoxes, "The specified amount exceeds the limit");
+        require(msg.value >= lot.boxPrice*numboxes2buy, "insufficient payment");
+        uint refundAmount = msg.value - (lot.boxPrice*numboxes2buy);
         msg.sender.transfer(refundAmount);
  
-        seller.transfer(boxPrice*numboxes2buy); //Transfering ether to the seller
+        seller.transfer(lot.boxPrice*numboxes2buy); //Transfering ether to the seller
         boxesPatient[buyer] = numboxes2buy;
-        numBoxes -= numboxes2buy;
+        lot.numBoxes -= numboxes2buy;
         
         emit boxesSold(numboxes2buy, ownerID);  
         
@@ -116,15 +120,15 @@ contract Lot {
     
     //Creating a function to view lot details
     
-    function viewLot () public view returns(string memory _lotName, uint _lotPrice, uint _numBoxes, uint _boxPrice, address _ownerID) {
+    function viewLot () external view returns(lotdata memory) {
         
-        return(lotName, lotPrice, numBoxes, boxPrice,ownerID);
+        return(lot);
         
     }
     
     //Creating a function to view how many boxes are owned by each patient
     
-    function viewBox (address _account) public view returns(uint _boxesPatient){
+    function viewBox (address _account) external view returns(uint _boxesPatient){
         return(boxesPatient[_account]);
     }
     
