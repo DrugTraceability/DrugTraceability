@@ -1,9 +1,14 @@
-pragma solidity=0.6.0;
+pragma solidity ^0.6.0;
 pragma experimental ABIEncoderV2;
 //Creating a smartcontract for a Lot 
 
 contract Lot {
     
+   
+    mapping(address => bool) authorizedManufacturers;
+    mapping(address => bool) authorizedDistributors;
+    mapping(address => bool) authorizedPharmacies;
+
     address payable internal ownerID; //The eth address of the contract deployer
     mapping(address => uint) public boxesPatient; //Mapping the purchased boxes to their corresonding patient ID
     string internal IPFShash;
@@ -49,9 +54,40 @@ contract Lot {
         return ownerID;
     }
     
+     
+    //Authoorization functions 
+     function manufacturerAddress (address user) external onlyOwner {
+        authorizedManufacturers[user]=true;
+    } 
+    
+     function distributorAddress (address user) external onlyOwner {
+        authorizedDistributors[user]=true;
+    } 
+    
+     function pharmacyAddress (address user) external onlyOwner {
+        authorizedPharmacies[user]=true;
+    }
+    
+    //Modifiers
+    
+    modifier onlyManufacurer() {
+        require(authorizedManufacturers[msg.sender]);
+        _;
+    }
+    
+        modifier onlyDistributor() {
+        require(authorizedDistributors[msg.sender]);
+        _;
+    }
+    
+        modifier onlyPharmacy() {
+        require(authorizedPharmacies[msg.sender]);
+        _;
+    }
+    
     //A function for the lot specification
     
-    function lotDetails(string calldata _lotName, uint _lotPrice,uint _numBoxes, uint _boxPrice) external onlyOwner() {
+    function lotDetails(string calldata _lotName, uint _lotPrice,uint _numBoxes, uint _boxPrice) external onlyManufacurer() {
         
         lot.lotName = _lotName;
         lot.lotPrice = _lotPrice;
@@ -64,7 +100,7 @@ contract Lot {
     }
     
     //Creating image upload function to store the image of the lot on IPFS
-    function  uploadLotImage (string calldata _ipfsHash) external onlyOwner()  returns (bool _success)  {
+    function  uploadLotImage (string calldata _ipfsHash) external onlyManufacurer()   returns (bool _success)  {
             
         require(bytes(_ipfsHash).length == 46);
         IPFShash=_ipfsHash;
@@ -76,20 +112,20 @@ contract Lot {
     
     //Creating a function to declare that the lot is for sale 
     
-    function grantSale() external onlyOwner(){
+    function grantSale() external onlyManufacurer() onlyDistributor(){
         
         emit lotSale(lot.lotName,lot.numBoxes,lot.lotPrice,lot.boxPrice);
     
     }    
     //Creating a function to buy lot 
     
-    function buyLot () external payable {
+    function buyLot () external onlyDistributor() onlyPharmacy() payable {
         address payable buyer = msg.sender;
         address payable seller = ownerID;
         require(buyer != seller, "The lot is already owned by the function caller");
-        require(msg.value >= lot.lotPrice, "insufficient payment"); //Checks if the buyer paid enough
-        uint refundAmount = msg.value - lot.lotPrice; //if msg.value is more than enough then the reminder is refunded to the buyer
-        msg.sender.transfer(refundAmount); // Transfers the excess amount to the buyer
+        require(msg.value == lot.lotPrice, "insufficient payment"); //Checks if the buyer paid enough
+        //uint refundAmount = msg.value - lot.lotPrice; //if msg.value is more than enough then the reminder is refunded to the buyer
+        //msg.sender.transfer(refundAmount); // Transfers the excess amount to the buyer
 
         seller.transfer(lot.lotPrice); //Transfering ether to the seller
         ownerID = buyer; //Upating the ownerID
@@ -106,9 +142,9 @@ contract Lot {
         address payable buyer = msg.sender;
         address payable seller = ownerID; 
         require(numboxes2buy <= lot.numBoxes, "The specified amount exceeds the limit");
-        require(msg.value >= lot.boxPrice*numboxes2buy, "insufficient payment");
-        uint refundAmount = msg.value - (lot.boxPrice*numboxes2buy);
-        msg.sender.transfer(refundAmount);
+        require(msg.value == lot.boxPrice*numboxes2buy, "incorrect payment");
+        //uint refundAmount = msg.value - (lot.boxPrice*numboxes2buy);
+        //msg.sender.transfer(refundAmount);
  
         seller.transfer(lot.boxPrice*numboxes2buy); //Transfering ether to the seller
         boxesPatient[buyer] = numboxes2buy;
